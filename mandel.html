@@ -1,0 +1,217 @@
+<script>
+/*---------------------------------------------------------------------------*/
+//  MANDELBROT SET LOCATION IDEAS
+//  🔗 http://www.cuug.ab.ca/dewara/mandelbrot/Mandelbrowser.html
+//  🔗 http://www.cuug.ab.ca/dewara/mandelbrot/images.html
+/*---------------------------------------------------------------------------*/
+
+document.write( "<canvas id='myCanvas' width=" + (window.innerWidth-18)
+  + " height=" + (window.innerHeight-18) 
+  + " style='border:1px solid #000000;'></canvas>" );
+
+var stepSize = 2.8 / Math.min( window.innerWidth, window.innerHeight );
+var origR = (window.innerWidth * stepSize ) / -1.7;
+var origI = (window.innerHeight * stepSize) / 2.0;
+var tileSize; /* valid values: 64, 16, 4, 1 */
+var mouseX, mouseY; /* current mouse location in cavas coordinates */
+var mouseR, mouseI; /* current mouse location in Mandelbrot coordinates */
+
+var c = document.getElementById( "myCanvas" );
+var ctx = c.getContext( "2d" );
+var x, y=0, cr, ci = origI, zr, zi, i, done, temp1, rCol, gCol, bCol;
+var intervalProc = null;
+var mouseIsDown = 0;
+
+/* Install event handlers */
+c.onwheel = zoom;
+c.onmousemove = mousemove;
+c.onmousedown = mousedown;
+c.onmouseup = mouseup;
+
+function mousedown( event ){ mouseIsDown = 1; }
+function mouseup( event ){ mouseIsDown = 0; }
+
+redraw(); /* Kick off first update */
+
+/*********************************************************************/
+/*********************************************************************/
+window.onresize = function()
+{
+  /* Resize canvas to fit in the resized window */
+  c.width = window.innerWidth-18;
+  c.height = window.innerHeight-18;
+  redraw();
+}
+
+/*********************************************************************/
+/*********************************************************************/
+function mousemove( event )
+{
+ // cleft of cardioid = (0.25 + 0.0i)  */
+
+  mouseX = event.clientX;
+  mouseY = event.clientY;
+  mouseR = origR + (mouseX * stepSize);
+  mouseI = origI - (mouseY * stepSize);
+
+  if( mouseIsDown )
+  {
+    origR -= (event.movementX * stepSize);
+    origI += (event.movementY * stepSize);
+    redraw();
+  }
+
+  document.title = Math.round(mouseR*100000)/100000
+                 + ", "
+                 + Math.round(mouseI*100000)/100000
+                 + "i, "
+                 + Math.round(c.width*stepSize*10000)/10000;
+}
+
+/*********************************************************************/
+/*********************************************************************/
+function zoom( event )
+{
+  /* scrollwheel forward = zoom in */
+
+  /* Move the origin half way toward the current mouse position */
+  if( event.deltaY < 0 )
+  {
+    /* ZOOM IN */
+    origR += (mouseX * stepSize) * 0.24;
+    origI -= (mouseY * stepSize) * 0.24;
+    stepSize *= 0.75;
+  }
+  else if( event.deltaY > 0 )
+  {
+    /* ZOOM OUT */
+    origR -= (mouseX * stepSize) * 0.34;
+    origI += (mouseY * stepSize) * 0.34;
+    stepSize *= 1.33333;
+  }
+  redraw();
+}
+
+/*********************************************************************/
+/*********************************************************************/
+function redraw()
+{
+  y = 0;
+  ci = origI;
+  tileSize = 256;
+
+  /* Trigger a redraw */
+  if( intervalProc == null )
+    intervalProc = setInterval( drawRaster, 0 );
+}
+
+/*********************************************************************/
+/* Given i in the specified range (inclusive), returns value 0...255 */
+/*********************************************************************/
+function colorMap( i, low, high )
+{
+  return Math.floor( (i-low)*(255/(high-low)) );
+}
+
+/*********************************************************************/
+/* drawRaster draws a single raster.                                 */
+/*********************************************************************/
+function drawRaster()
+{
+  cr = origR;
+  for( x = 0; x < c.width; x += tileSize )
+  {
+    zr = zi = 0.0;
+    done = i = 0;
+    while( !done )
+    {
+      /*--------------------------------------------------------*/
+      /* Mandelbrot Math:                                       */
+      /* z = z^2 + c                                            */
+      /* (zr + i*zi) * (zr + i*zi) = zr^2 + 2*i*zr*zi - zi^2    */
+      /*                           = zr^2 - zi^2  +  i*2*zr*zi  */
+      /*--------------------------------------------------------*/
+      temp1 = (zr*zr) - (zi*zi) + cr;
+      zi = 2*zr*zi + ci;
+      zr = temp1;
+      /* the Mandelbrot set is inside mod 2 */
+      if( Math.sqrt( (zr*zr) + (zi*zi) ) > 1000 )
+        done = 1;
+//      if( ++i >= 255 )
+      if( ++i >= 2047 )
+        done = 1;
+    }
+
+if( 1 )
+{
+    i >>= 3;
+    /*------------------------------*/
+    /* Compute color for this pixel */
+    /*------------------------------*/
+    if( i < 32 )       /* 0...31 */
+    {
+      rCol = colorMap( i, 0, 31 );
+      gCol = 0;
+      bCol = 0;
+    }
+    else if( i < 96 )   /* 32...95 */
+    {
+      rCol = 255;
+      gCol = 0;
+      bCol = colorMap( i, 32, 95 );
+    }
+    else if( i < 255 )   /* 96...254 */
+    {
+      rCol = 255;
+      gCol = colorMap( i, 96, 254 );
+      bCol = 255;
+    }
+    else /* 255 */
+    {
+      rCol = gCol = bCol = 0;
+    }
+}
+else
+{
+    if( i == 4095 )
+      i = 0;
+    rCol = (i & 0x0000000F) << 4;
+    gCol = (i & 0x000000F0);
+    bCol = (i & 0x00000F00) >> 4;
+//    if( gCol > 0 ) rCol = 255;
+//    if( bCol > 0 ) gCol = 255;
+}
+    ctx.fillStyle = 'rgb(' + rCol + ',' + gCol + ',' + bCol + ')';
+    ctx.fillRect( x, y, tileSize, tileSize );
+    cr += stepSize * tileSize;
+  }
+
+  y += tileSize;
+  ci -= stepSize * tileSize;
+
+  /*------------------------------------------------------------*/
+  /* Check if we have finished the final raster, at the highest */
+  /* resolution, otherwise adjust tile size and restart         */
+  /*------------------------------------------------------------*/
+  if( y >= c.height )
+  {
+    if( tileSize > 1 )
+    {
+      y = 0;
+      ci = origI; /* Start at the top */
+      tileSize = tileSize >> 2; /* sequence: 256, 64, 16, 4, 1 */
+    }
+    else
+    {
+      clearInterval( intervalProc );
+      intervalProc = null;
+    }
+  }
+}
+
+</script>
+
+
+
+
+
